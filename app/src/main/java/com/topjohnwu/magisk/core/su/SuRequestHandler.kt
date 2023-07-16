@@ -5,15 +5,15 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import com.topjohnwu.magisk.BuildConfig
 import com.topjohnwu.magisk.core.Config
-import com.topjohnwu.magisk.core.magiskdb.PolicyDao
+import com.topjohnwu.magisk.core.data.magiskdb.PolicyDao
+import com.topjohnwu.magisk.core.ktx.getPackageInfo
 import com.topjohnwu.magisk.core.model.su.SuPolicy
-import com.topjohnwu.magisk.ktx.getPackageInfo
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.Closeable
 import java.io.DataOutputStream
+import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -21,11 +21,10 @@ import java.util.concurrent.TimeUnit
 class SuRequestHandler(
     val pm: PackageManager,
     private val policyDB: PolicyDao
-) : Closeable {
+) {
 
-    private lateinit var output: DataOutputStream
-    lateinit var policy: SuPolicy
-        private set
+    private lateinit var output: File
+    private lateinit var policy: SuPolicy
     lateinit var pkgInfo: PackageInfo
         private set
 
@@ -54,32 +53,27 @@ class SuRequestHandler(
         return true
     }
 
-    override fun close() {
-        if (::output.isInitialized)
-            runCatching { output.close() }
-    }
-
-    private class SuRequestError : IOException()
-
-    private suspend fun init(intent: Intent) = withContext(Dispatchers.IO) {
-        try {
-            val fifo = intent.getStringExtra("fifo") ?: throw SuRequestError()
-            val uid = intent.getIntExtra("uid", -1).also { if (it < 0) throw SuRequestError() }
-            val pid = intent.getIntExtra("pid", -1)
-            pkgInfo = pm.getPackageInfo(uid, pid) ?: throw SuRequestError()
-            output = DataOutputStream(FileOutputStream(fifo).buffered())
-            policy = SuPolicy(uid)
-            true
-        } catch (e: Exception) {
-            when (e) {
-                is IOException, is PackageManager.NameNotFoundException -> {
-                    Timber.e(e)
-                    close()
-                    false
-                }
-                else -> throw e  // Unexpected error
-            }
+    private suspend fun init(intent: Intent): Boolean {
+        val uid = intent.getIntExtra("uid", -1)
+        val pid = intent.getIntExtra("pid", -1)
+        val fifo = intent.getStringExtra("fifo")
+        if (uid <= 0 || pid <= 0 || fifo == null) {
+            return false
         }
+        output = File(fifo)
+        policy = SuPolicy(uid)
+        try {
+            pkgInfo = pm.getPackageInfo(uid, pid) ?: PackageInfo().apply {
+                val name = pm.getNameForUid(uid) ?: throw PackageManager.NameNotFoundException()
+                // We only fill in sharedUserId and leave other fields uninitialized
+                sharedUserId = name.split(":")[0]
+            }
+        } catch (e: PackageManager.NameNotFoundException) {
+            Timber.e(e)
+            respond(SuPolicy.DENY, -1)
+            return false
+        }
+        return output.canWrite()
     }
 
     suspend fun respond(action: Int, time: Int) {
@@ -94,14 +88,15 @@ class SuRequestHandler(
 
         withContext(Dispatchers.IO) {
             try {
-                output.writeInt(policy.policy)
-                output.flush()
+                DataOutputStream(FileOutputStream(output)).use {
+                    it.writeInt(policy.policy)
+                    it.flush()
+                }
             } catch (e: IOException) {
                 Timber.e(e)
-            } finally {
-                close()
-                if (until >= 0)
-                    policyDB.update(policy)
+            }
+            if (until >= 0) {
+                policyDB.update(policy)
             }
         }
     }

@@ -178,32 +178,34 @@ The `customize.sh` script runs in Magisk's BusyBox `ash` shell with "Standalone 
 - `ZIPFILE` (path): your module's installation zip
 - `ARCH` (string): the CPU architecture of the device. Value is either `arm`, `arm64`, `x86`, or `x64`
 - `IS64BIT` (bool): `true` if `$ARCH` is either `arm64` or `x64`
-- `API` (int): the API level (Android version) of the device (e.g. `21` for Android 5.0)
+- `API` (int): the API level (Android version) of the device (e.g. `23` for Android 6.0)
 
 ##### Functions
 
 ```
 ui_print <msg>
-    print <msg> to console
+    Print <msg> to console
     Avoid using 'echo' as it will not display in custom recovery's console
 
 abort <msg>
-    print error message <msg> to console and terminate the installation
+    Print error message <msg> to console and terminate the installation
     Avoid using 'exit' as it will skip the termination cleanup steps
 
 set_perm <target> <owner> <group> <permission> [context]
-    if [context] is not set, the default is "u:object_r:system_file:s0"
-    this function is a shorthand for the following commands:
+    If [context] is not specified, the default is "u:object_r:system_file:s0"
+    This function is a shorthand for the following commands:
        chown owner.group target
        chmod permission target
        chcon context target
 
 set_perm_recursive <directory> <owner> <group> <dirpermission> <filepermission> [context]
-    if [context] is not set, the default is "u:object_r:system_file:s0"
-    for all files in <directory>, it will call:
-       set_perm file owner group filepermission context
-    for all directories in <directory> (including itself), it will call:
-       set_perm dir owner group dirpermission context
+    If [context] is not specified, the default is "u:object_r:system_file:s0"
+    This function is a shorthand for the following psuedo code:
+      set_perm <directory> owner group dirpermission context
+      for file in <directory>:
+        set_perm file owner group filepermission context
+      for dir in <directory>:
+        set_perm_recursive dir owner group dirpermission context
 ```
 
 For convenience, you can also declare a list of folders you want to replace in the variable name `REPLACE`. The module installer script will create the `.replace` file into the folders listed in `REPLACE`. For example:
@@ -257,7 +259,7 @@ Since `/` is read-only on system-as-root devices, Magisk provides an overlay sys
 
 Overlay files shall be placed in the `overlay.d` folder in boot image ramdisk, and they follow these rules:
 
-1. All `*.rc` files in `overlay.d` will be read and concatenated **AFTER** `init.rc`
+1. Each `*.rc` file (except for `init.rc`) in `overlay.d` will be read and concatenated **AFTER** `init.rc` if it does not exist in the root directory, otherwise it will **REPLACE** the existing one.
 2. Existing files can be replaced by files located at the same relative path
 3. Files that correspond to a non-existing file will be ignored
 

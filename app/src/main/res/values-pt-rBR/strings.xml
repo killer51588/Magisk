@@ -20,7 +20,8 @@
     <string name="home_package">Pacote</string>
     <string name="home_app_title">App</string>
     <string name="home_notice_content">Baixe o Magisk SOMENTE pela página oficial do Github. Arquivos de fontes desconhecidas podem ser maliciosos e danificar seu aparelho.</string>
-    <string name="home_support_title">Contribua com o Projeto</string>
+    <string name="home_support_title">Apoie</string>
+    <string name="home_follow_title">Siga</string>
     <string name="home_item_source">Fonte</string>
     <string name="home_support_content">Magisk sempre foi e sempre será, gratuito e de código aberto. No entanto, você pode agradecer enviando uma pequena doação.</string>
     <string name="home_installed_version">Instalado</string>
@@ -44,7 +45,7 @@
     <string name="install_inactive_slot_msg">Seu dispositivo será FORÇADO a inicializar no slot inativo atual após uma reinicialização!\nSó use esta opção após a conclusão do OTA.\nDeseja continuar?</string>
     <string name="setup_title">Configuração adicional</string>
     <string name="select_patch_file">Selecione e corrija um arquivo</string>
-    <string name="patch_file_msg">Selecione um arquivo imagem (*.img) ou um arquivo tar (*.tar)</string>
+    <string name="patch_file_msg">Selecione um arquivo imagem (*.img) ou um arquivo tar (*.tar) ou um arquivo payload.bin (*.bin)</string>
     <string name="reboot_delay_toast">Reiniciando em 5 segundos…</string>
     <string name="flash_screen_title">Instalação</string>
 
@@ -107,6 +108,9 @@
     <string name="suspend_text_riru">Módulo suspenso porque %1$s está ativo</string>
     <string name="suspend_text_zygisk">Módulo suspenso porque %1$s não está ativo</string>
     <string name="zygisk_module_unloaded">Modulo Zygisk não carregado devido a incompatibilidade</string>
+    <string name="module_empty">Nenhum módulo instalado</string>
+    <string name="confirm_install">Instalar módulo %1$s?</string>
+    <string name="confirm_install_title">Confirmação de Instalação</string>
 
     <!--Settings-->
     <string name="settings_dark_mode_title">Modo de tema</string>
@@ -117,7 +121,7 @@
     <string name="settings_download_path_title">Caminho para Baixar</string>
     <string name="settings_download_path_message">Os arquivos serão salvos em %1$s</string>
     <string name="settings_hide_app_title">Ocultar o app do Magisk</string>
-    <string name="settings_hide_app_summary">Instala o app ooulto com ID aleatório e nome personalizado</string>
+    <string name="settings_hide_app_summary">Instala o app oculto com ID aleatório e nome personalizado</string>
     <string name="settings_restore_app_title">Restaurar o App do Magisk</string>
     <string name="settings_restore_app_summary">Desoculta o app do Magisk e restaura o APK original</string>
     <string name="language">Idioma</string>
@@ -172,7 +176,7 @@
     <string name="settings_user_independent">Independente do usuário</string>
     <string name="owner_only_summary">Somente o proprietário tem acesso ao SuperUsuário</string>
     <string name="owner_manage_summary">Somente o proprietário pode gerenciar o acesso do SuperUsuário e receber pedidos de solicitação</string>
-    <string name="user_indepenent_summary">Cada usuário tem suas próprias regras de root separadas</string>
+    <string name="user_independent_summary">Cada usuário tem suas próprias regras de root separadas</string>
     <string name="mount_namespace_mode">Ativar Modo Namespace</string>
     <string name="settings_ns_global">Namespace global</string>
     <string name="settings_ns_requester">Herdar Namespace</string>
@@ -211,6 +215,7 @@
     <string name="setup_fail">Falha na instalação</string>
     <string name="env_fix_title">Configuração adicional exigida</string>
     <string name="env_fix_msg">Seu dispositivo exige uma configuração adicional para o Magisk funcionar corretamente. Deseja continuar e reiniciar?</string>
+    <string name="env_full_fix_msg">Seu dispositivo precisa refazer o flash do Magisk para funcionar corretamente. Reinstale o Magisk no aplicativo, o modo de recuperação não pode obter as devidas informações do dispositivo.</string>
     <string name="setup_msg">Executando a configuração do ambiente…</string>
     <string name="authenticate">Autenticar</string>
     <string name="unsupport_magisk_title">Versão do Magisk não suportada</string>
@@ -222,6 +227,7 @@
     <string name="unsupport_nonroot_stub_msg">O app oculto do Magisk não pode continuar a funcionar porque o SuperUsuário foi perdido. Por favor, restaure o APK original.</string>
     <string name="unsupport_nonroot_stub_title">@string/settings_restore_app_title</string>
     <string name="external_rw_permission_denied">Autorize a permissão de armazenamento para ativar esta funcionalidade</string>
+    <string name="post_notifications_denied">Autorize a permissão de notificaçoes para ativar esta funcionalidade</string>
     <string name="install_unknown_denied">Permita a "instalação apps desconhecidos" para ativar esta funcionalidade</string>
     <string name="add_shortcut_title">Adicionar Atalho à Tela Inicial</string>
     <string name="add_shortcut_msg">Depois de ocultar o app do Magisk, o seu nome e ícone ficarão difíceis de reconhecer. Deseja adicionar um atalho na tela inicial?</string>

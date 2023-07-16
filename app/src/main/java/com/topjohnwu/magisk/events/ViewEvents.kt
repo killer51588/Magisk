@@ -1,20 +1,19 @@
 package com.topjohnwu.magisk.events
 
-import android.content.ActivityNotFoundException
 import android.content.Context
-import android.net.Uri
 import android.view.View
-import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.navigation.NavDirections
 import com.google.android.material.snackbar.Snackbar
-import com.topjohnwu.magisk.MainDirections
-import com.topjohnwu.magisk.R
-import com.topjohnwu.magisk.arch.*
-import com.topjohnwu.magisk.core.Const
+import com.topjohnwu.magisk.arch.ActivityExecutor
+import com.topjohnwu.magisk.arch.ContextExecutor
+import com.topjohnwu.magisk.arch.NavigationActivity
+import com.topjohnwu.magisk.arch.UIActivity
+import com.topjohnwu.magisk.arch.ViewEvent
+import com.topjohnwu.magisk.core.base.ContentResultCallback
 import com.topjohnwu.magisk.utils.TextHolder
-import com.topjohnwu.magisk.utils.Utils
 import com.topjohnwu.magisk.utils.asText
+import com.topjohnwu.magisk.view.MagiskDialog
 import com.topjohnwu.magisk.view.Shortcuts
 
 class PermissionEvent(
@@ -52,16 +51,12 @@ class RecreateEvent : ViewEvent(), ActivityExecutor {
     }
 }
 
-class MagiskInstallFileEvent(
-    private val callback: (Uri) -> Unit
+class GetContentEvent(
+    private val type: String,
+    private val callback: ContentResultCallback
 ) : ViewEvent(), ActivityExecutor {
     override fun invoke(activity: UIActivity<*>) {
-        try {
-            activity.getContent("*/*", callback)
-            Utils.toast(R.string.patch_file_msg, Toast.LENGTH_LONG)
-        } catch (e: ActivityNotFoundException) {
-            Utils.toast(R.string.app_not_found, Toast.LENGTH_SHORT)
-        }
+        activity.getContent(type, callback)
     }
 }
 
@@ -80,20 +75,6 @@ class NavigationEvent(
 class AddHomeIconEvent : ViewEvent(), ContextExecutor {
     override fun invoke(context: Context) {
         Shortcuts.addHomeIcon(context)
-    }
-}
-
-class SelectModuleEvent : ViewEvent(), FragmentExecutor {
-    override fun invoke(fragment: BaseFragment<*>) {
-        try {
-            fragment.apply {
-                activity?.getContent("application/zip") {
-                    MainDirections.actionFlashFragment(Const.Value.FLASH_ZIP, it).navigate()
-                }
-            }
-        } catch (e: ActivityNotFoundException) {
-            Utils.toast(R.string.app_not_found, Toast.LENGTH_SHORT)
-        }
     }
 }
 
@@ -118,4 +99,16 @@ class SnackbarEvent(
     override fun invoke(activity: UIActivity<*>) {
         activity.showSnackbar(msg.getText(activity.resources), length, builder)
     }
+}
+
+class DialogEvent(
+    private val builder: DialogBuilder
+) : ViewEvent(), ActivityExecutor {
+    override fun invoke(activity: UIActivity<*>) {
+        MagiskDialog(activity).apply(builder::build).show()
+    }
+}
+
+interface DialogBuilder {
+    fun build(dialog: MagiskDialog)
 }

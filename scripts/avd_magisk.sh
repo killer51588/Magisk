@@ -1,10 +1,8 @@
-#!/usr/bin/env bash
 #####################################################################
 #   AVD Magisk Setup
 #####################################################################
 #
-# Support emulator ABI: x86_64 and arm64
-# Support API level: 23 - 31 (21 and 22 images do not have SELinux)
+# Support API level: 23 - 33
 #
 # With an emulator booted and accessible via ADB, usage:
 # ./build.py emulator
@@ -21,7 +19,7 @@
 #####################################################################
 
 mount_sbin() {
-  mount -t tmpfs -o 'mode=0755' tmpfs /sbin
+  mount -t tmpfs -o 'mode=0755' magisk /sbin
   chcon u:object_r:rootfs:s0 /sbin
 }
 
@@ -46,15 +44,15 @@ if [ -z "$FIRST_STAGE" ]; then
   fi
 fi
 
-pm install -r $(pwd)/app-debug.apk
+pm install -r $(pwd)/magisk.apk
 
 # Extract files from APK
-unzip -oj app-debug.apk 'assets/util_functions.sh'
+unzip -oj magisk.apk 'assets/util_functions.sh' 'assets/stub.apk'
 . ./util_functions.sh
 
 api_level_arch_detect
 
-unzip -oj app-debug.apk "lib/$ABI/*" "lib/$ABI32/libmagisk32.so" -x "lib/$ABI/libbusybox.so"
+unzip -oj magisk.apk "lib/$ABI/*" "lib/$ABI32/libmagisk32.so" -x "lib/$ABI/libbusybox.so"
 for file in lib*.so; do
   chmod 755 $file
   mv "$file" "${file:3:${#file}-6}"
@@ -68,13 +66,9 @@ if [ -d /dev/avd-magisk ]; then
   rm -rf /dev/avd-magisk 2>/dev/null
 fi
 
-# SELinux stuffs
-if [ -f /vendor/etc/selinux/precompiled_sepolicy ]; then
-  ./magiskpolicy --load /vendor/etc/selinux/precompiled_sepolicy --live --magisk 2>&1
-elif [ -f /sepolicy ]; then
-  ./magiskpolicy --load /sepolicy --live --magisk 2>&1
-else
-  ./magiskpolicy --live --magisk 2>&1
+# Mount /cache if not already mounted
+if ! grep -q ' /cache ' /proc/mounts; then
+  mount -t tmpfs -o 'mode=0755' tmpfs /cache
 fi
 
 MAGISKTMP=/sbin
@@ -113,18 +107,19 @@ else
   # Android Q+ without sbin
   MAGISKTMP=/dev/avd-magisk
   mkdir /dev/avd-magisk
-  mount -t tmpfs -o 'mode=0755' tmpfs /dev/avd-magisk
+  # If a file name 'magisk' is in current directory, mount will fail
+  rm magisk
+  mount -t tmpfs -o 'mode=0755' magisk /dev/avd-magisk
 fi
 
 # Magisk stuff
 mkdir -p $MAGISKBIN 2>/dev/null
-unzip -oj app-debug.apk 'assets/*' -x 'assets/chromeos/*' \
--x 'assets/bootctl' -x 'assets/main.jar' -d $MAGISKBIN
+unzip -oj magisk.apk 'assets/*.sh' -d $MAGISKBIN
 mkdir $NVBASE/modules 2>/dev/null
 mkdir $POSTFSDATAD 2>/dev/null
 mkdir $SERVICED 2>/dev/null
 
-for file in magisk32 magisk64 magiskpolicy; do
+for file in magisk32 magisk64 magiskpolicy stub.apk; do
   chmod 755 ./$file
   cp -af ./$file $MAGISKTMP/$file
   cp -af ./$file $MAGISKBIN/$file
@@ -133,7 +128,11 @@ cp -af ./magiskboot $MAGISKBIN/magiskboot
 cp -af ./magiskinit $MAGISKBIN/magiskinit
 cp -af ./busybox $MAGISKBIN/busybox
 
-ln -s ./magisk64 $MAGISKTMP/magisk
+if $IS64BIT; then
+  ln -s ./magisk64 $MAGISKTMP/magisk
+else
+  ln -s ./magisk32 $MAGISKTMP/magisk
+fi
 ln -s ./magisk $MAGISKTMP/su
 ln -s ./magisk $MAGISKTMP/resetprop
 ln -s ./magisk $MAGISKTMP/magiskhide
@@ -141,11 +140,30 @@ ln -s ./magiskpolicy $MAGISKTMP/supolicy
 
 mkdir -p $MAGISKTMP/.magisk/mirror
 mkdir $MAGISKTMP/.magisk/block
+mkdir $MAGISKTMP/.magisk/worker
 touch $MAGISKTMP/.magisk/config
+
+export MAGISKTMP
+MAKEDEV=1 $MAGISKTMP/magisk --preinit-device 2>&1
+
+RULESCMD=""
+for r in $MAGISKTMP/.magisk/preinit/*/sepolicy.rule; do
+  [ -f "$r" ] || continue
+  RULESCMD="$RULESCMD --apply $r"
+done
+
+# SELinux stuffs
+if [ -d /sys/fs/selinux ]; then
+  if [ -f /vendor/etc/selinux/precompiled_sepolicy ]; then
+    ./magiskpolicy --load /vendor/etc/selinux/precompiled_sepolicy --live --magisk $RULESCMD 2>&1
+  elif [ -f /sepolicy ]; then
+    ./magiskpolicy --load /sepolicy --live --magisk $RULESCMD 2>&1
+  else
+    ./magiskpolicy --live --magisk $RULESCMD 2>&1
+  fi
+fi
 
 # Boot up
 $MAGISKTMP/magisk --post-fs-data
-while [ ! -f /dev/.magisk_unblock ]; do sleep 1; done
-rm /dev/.magisk_unblock
 start
 $MAGISKTMP/magisk --service

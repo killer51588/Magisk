@@ -5,13 +5,14 @@ import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.MenuProvider
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.OnRebindCallback
 import androidx.databinding.ViewDataBinding
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavDirections
 import com.topjohnwu.magisk.BR
-import com.topjohnwu.magisk.ktx.startAnimations
 
 abstract class BaseFragment<Binding : ViewDataBinding> : Fragment(), ViewModelHolder {
 
@@ -20,11 +21,12 @@ abstract class BaseFragment<Binding : ViewDataBinding> : Fragment(), ViewModelHo
     protected abstract val layoutRes: Int
 
     private val navigation get() = activity?.navigation
+    open val snackbarView: View? get() = null
     open val snackbarAnchorView: View? get() = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        startObserveEvents()
+        startObserveLiveData()
     }
 
     override fun onCreateView(
@@ -36,7 +38,15 @@ abstract class BaseFragment<Binding : ViewDataBinding> : Fragment(), ViewModelHo
             it.setVariable(BR.viewModel, viewModel)
             it.lifecycleOwner = viewLifecycleOwner
         }
+        if (this is MenuProvider) {
+            activity?.addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.STARTED)
+        }
+        savedInstanceState?.let { viewModel.onRestoreState(it) }
         return binding.root
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        viewModel.onSaveState(outState)
     }
 
     override fun onStart() {
@@ -70,7 +80,10 @@ abstract class BaseFragment<Binding : ViewDataBinding> : Fragment(), ViewModelHo
 
     override fun onResume() {
         super.onResume()
-        viewModel.requestRefresh()
+        viewModel.let {
+            if (it is AsyncLoadViewModel)
+                it.startLoading()
+        }
     }
 
     protected open fun onPreBind(binding: Binding) {
@@ -78,7 +91,6 @@ abstract class BaseFragment<Binding : ViewDataBinding> : Fragment(), ViewModelHo
     }
 
     fun NavDirections.navigate() {
-        navigation?.navigate(this)
+        navigation?.currentDestination?.getAction(actionId)?.let { navigation!!.navigate(this) }
     }
-
 }

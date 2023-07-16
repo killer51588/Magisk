@@ -1,57 +1,67 @@
 package com.topjohnwu.magisk.ui.module
 
-import androidx.lifecycle.viewModelScope
+import android.net.Uri
+import androidx.databinding.Bindable
+import androidx.lifecycle.MutableLiveData
 import com.topjohnwu.magisk.BR
 import com.topjohnwu.magisk.R
-import com.topjohnwu.magisk.arch.BaseViewModel
+import com.topjohnwu.magisk.arch.AsyncLoadViewModel
 import com.topjohnwu.magisk.core.Info
+import com.topjohnwu.magisk.core.base.ContentResultCallback
 import com.topjohnwu.magisk.core.model.module.LocalModule
 import com.topjohnwu.magisk.core.model.module.OnlineModule
+import com.topjohnwu.magisk.databinding.MergeObservableList
 import com.topjohnwu.magisk.databinding.RvItem
-import com.topjohnwu.magisk.databinding.diffListOf
-import com.topjohnwu.magisk.databinding.itemBindingOf
-import com.topjohnwu.magisk.events.SelectModuleEvent
+import com.topjohnwu.magisk.databinding.bindExtra
+import com.topjohnwu.magisk.databinding.diffList
+import com.topjohnwu.magisk.databinding.set
+import com.topjohnwu.magisk.dialog.LocalModuleInstallDialog
+import com.topjohnwu.magisk.dialog.OnlineModuleInstallDialog
+import com.topjohnwu.magisk.events.GetContentEvent
 import com.topjohnwu.magisk.events.SnackbarEvent
-import com.topjohnwu.magisk.events.dialog.ModuleInstallDialog
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import me.tatarka.bindingcollectionadapter2.collections.MergeObservableList
+import kotlinx.parcelize.Parcelize
 
-class ModuleViewModel : BaseViewModel() {
+class ModuleViewModel : AsyncLoadViewModel() {
 
     val bottomBarBarrierIds = intArrayOf(R.id.module_update, R.id.module_remove)
 
-    private val itemsInstalled = diffListOf<LocalModuleRvItem>()
+    private val itemsInstalled = diffList<LocalModuleRvItem>()
 
     val items = MergeObservableList<RvItem>()
-    val itemBinding = itemBindingOf<RvItem> {
-        it.bindExtra(BR.viewModel, this)
+    val extraBindings = bindExtra {
+        it.put(BR.viewModel, this)
     }
 
-    init {
-        if (Info.env.isActive) {
-            items.insertItem(InstallModule)
-                .insertList(itemsInstalled)
-        }
-    }
+    val data get() = uri
 
-    override fun refresh(): Job {
-        return viewModelScope.launch {
-            state = State.LOADING
+    @get:Bindable
+    var loading = true
+        private set(value) = set(value, field, { field = it }, BR.loading)
+
+    override suspend fun doLoadWork() {
+        loading = true
+        val moduleLoaded = Info.env.isActive &&
+                withContext(Dispatchers.IO) { LocalModule.loaded() }
+        if (moduleLoaded) {
             loadInstalled()
-            state = State.LOADED
-            loadUpdateInfo()
+            if (items.isEmpty()) {
+                items.insertItem(InstallModule)
+                    .insertList(itemsInstalled)
+            }
         }
+        loading = false
+        loadUpdateInfo()
     }
+
+    override fun onNetworkChanged(network: Boolean) = startLoading()
 
     private suspend fun loadInstalled() {
-        val installed = LocalModule.installed().map { LocalModuleRvItem(it) }
-        val diff = withContext(Dispatchers.Default) {
-            itemsInstalled.calculateDiff(installed)
+        withContext(Dispatchers.Default) {
+            val installed = LocalModule.installed().map { LocalModuleRvItem(it) }
+            itemsInstalled.update(installed)
         }
-        itemsInstalled.update(installed, diff)
     }
 
     private suspend fun loadUpdateInfo() {
@@ -64,12 +74,28 @@ class ModuleViewModel : BaseViewModel() {
     }
 
     fun downloadPressed(item: OnlineModule?) =
-        if (item != null && isConnected.get()) {
-            withExternalRW { ModuleInstallDialog(item).publish() }
+        if (item != null && Info.isConnected.value == true) {
+            withExternalRW { OnlineModuleInstallDialog(item).show() }
         } else {
             SnackbarEvent(R.string.no_connection).publish()
         }
 
-    fun installPressed() = withExternalRW { SelectModuleEvent().publish() }
+    fun installPressed() = withExternalRW {
+        GetContentEvent("application/zip", UriCallback()).publish()
+    }
 
+    fun requestInstallLocalModule(uri: Uri, displayName: String) {
+        LocalModuleInstallDialog(this, uri, displayName).show()
+    }
+
+    @Parcelize
+    class UriCallback : ContentResultCallback {
+        override fun onActivityResult(result: Uri) {
+            uri.value = result
+        }
+    }
+
+    companion object {
+        private val uri = MutableLiveData<Uri?>()
+    }
 }

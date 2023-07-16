@@ -5,13 +5,18 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.res.use
 import androidx.core.view.WindowCompat
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
+import androidx.transition.AutoTransition
+import androidx.transition.TransitionManager
 import com.google.android.material.snackbar.Snackbar
 import com.topjohnwu.magisk.BR
+import com.topjohnwu.magisk.R
 import com.topjohnwu.magisk.core.Config
 import com.topjohnwu.magisk.core.base.BaseActivity
 import rikka.insets.WindowInsetsHelper
@@ -22,12 +27,13 @@ abstract class UIActivity<Binding : ViewDataBinding> : BaseActivity(), ViewModel
     protected lateinit var binding: Binding
     protected abstract val layoutRes: Int
 
+    protected val binded get() = ::binding.isInitialized
+
     open val snackbarView get() = binding.root
     open val snackbarAnchorView: View? get() = null
 
     init {
-        val theme = Config.darkTheme
-        AppCompatDelegate.setDefaultNightMode(theme)
+        AppCompatDelegate.setDefaultNightMode(Config.darkTheme)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,7 +42,7 @@ abstract class UIActivity<Binding : ViewDataBinding> : BaseActivity(), ViewModel
 
         super.onCreate(savedInstanceState)
 
-        startObserveEvents()
+        startObserveLiveData()
 
         // We need to set the window background explicitly since for whatever reason it's not
         // propagated upstream
@@ -84,7 +90,10 @@ abstract class UIActivity<Binding : ViewDataBinding> : BaseActivity(), ViewModel
 
     override fun onResume() {
         super.onResume()
-        viewModel.requestRefresh()
+        viewModel.let {
+            if (it is AsyncLoadViewModel)
+                it.startLoading()
+        }
     }
 
     override fun onEventDispatched(event: ViewEvent) = when (event) {
@@ -92,4 +101,15 @@ abstract class UIActivity<Binding : ViewDataBinding> : BaseActivity(), ViewModel
         is ActivityExecutor -> event(this)
         else -> Unit
     }
+}
+
+fun ViewGroup.startAnimations() {
+    val transition = AutoTransition()
+        .setInterpolator(FastOutSlowInInterpolator())
+        .setDuration(400)
+        .excludeTarget(R.id.main_toolbar, true)
+    TransitionManager.beginDelayedTransition(
+        this,
+        transition
+    )
 }

@@ -2,17 +2,17 @@ name: Magisk Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
     paths:
-      - 'app/**'
-      - 'native/**'
-      - 'stub/**'
-      - 'buildSrc/**'
-      - 'build.py'
-      - 'gradle.properties'
-      - '.github/workflows/build.yml'
+      - "app/**"
+      - "native/**"
+      - "stub/**"
+      - "buildSrc/**"
+      - "build.py"
+      - "gradle.properties"
+      - ".github/workflows/build.yml"
   pull_request:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -22,33 +22,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
-    env:
-      NDK_CCACHE: ${{ github.workspace }}/ccache
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Check out
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 0
 
-      - name: Set up JDK 11
-        uses: actions/setup-java@v1
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
-          java-version: '11'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Set up Python 3
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
-      - name: Set up ccache
-        run: bash .github/ccache.sh
+      - name: Set up sccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: ${{ runner.os }}-${{ github.sha }}
+          restore-keys: ${{ runner.os }}
+          max-size: 10000M
 
       - name: Cache Gradle dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
@@ -58,10 +60,9 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Cache build cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
-            ${{ github.workspace }}/.ccache
             ~/.gradle/caches/build-cache-*
           key: ${{ runner.os }}-build-cache-${{ github.sha }}
           restore-keys: ${{ runner.os }}-build-cache-
@@ -71,13 +72,11 @@ jobs:
 
       - name: Build release
         run: |
-          ./ccache -zp
           python build.py -vr all
 
       - name: Build debug
         run: |
           python build.py -v all
-          ./ccache -s
 
       - name: Stop gradle daemon
         run: ./gradlew --stop
@@ -85,7 +84,51 @@ jobs:
       # Only upload artifacts built on Linux
       - name: Upload build artifact
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ github.sha }}
           path: out
+
+      - name: Upload mapping and native debug symbols
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ github.sha }}-symbols
+          path: app/build/outputs
+
+  test:
+    name: Test on ${{ matrix.api }}
+    runs-on: macos-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [23, 26, 28, 29, 34]
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ github.sha }}
+          path: out
+
+      - name: AVD test
+        run: |
+          brew install coreutils
+          scripts/avd_test.sh ${{ matrix.api }}
